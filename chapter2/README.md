@@ -3,7 +3,9 @@
 Don’t Repeat Yourself (DRY) principle  
 every piece of knowledge must have a single, unambiguous, authoritative representation within a system
 
-In the exercise created simple webserver with Auto Scaling group and listeners. Made one change in the code because the resource changed. 
+In the exercise created simple webserver with Auto Scaling group and listener. See the code in the directory ```exercises/```
+
+Made one change in the code because the resource changed on how to call it. 
 
 This is what we build
 ![](media/2022-02-09-15-15-28.png)  
@@ -11,17 +13,17 @@ This is what we build
 This is the code from the book
 ```hcl
 resource "aws_lb_listener_rule" "asg" { 
-    listener_arn = aws_lb_listener.http.arn 
-    priority = 100
-    condition {
-      field  = "path-pattern"
-      values = ["*"]
-    }
+  listener_arn = aws_lb_listener.http.arn 
+  priority = 100
+  condition {
+    field  = "path-pattern"
+    values = ["*"]
+  }
     
-    action {
-      type             = "forward"
-      target_group_arn = aws_lb_target_group.asg.arn
-    } 
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.asg.arn
+  } 
 }
 ```
 
@@ -35,4 +37,11 @@ resource "aws_lb_listener_rule" "asg" {
       values = ["*"]
     }
   }
+
+  action {
+  type             = "forward"
+  target_group_arn = aws_lb_target_group.asg.arn
+  }
+}
+
 ```
