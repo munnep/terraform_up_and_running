@@ -65,3 +65,68 @@ terraform workspace list
 ```
 terraform workspace show
 ```
+
+## different directories
+
+make different directories to store your environments. 
+
+To still get other data use the remote_state option
+```
+data "terraform_remote_state" "db" {
+  backend = "s3"
+  config = {
+    bucket = "terraform-up-and-running-state-patrick"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+```
+this way you have the option to read data like following
+```
+data.terraform_remote_state.db.outputs.port
+```
+
+##  template_file
+
+instead of this in the instance
+```
+user_data = <<EOF
+#!/bin/bash
+echo "Hello, World" >> index.html
+echo "${data.terraform_remote_state.db.outputs.address}" >> index.html echo "${data.terraform_remote_state.db.outputs.port}" >> index.html nohup busybox httpd -f -p ${var.server_port} &
+EOF
+```
+
+you could create a file called user-data
+```
+#!/bin/bash
+cat > index.html <<EOF
+<h1>Hello, World</h1>
+<p>DB address: ${db_address}</p>
+<p>DB port: ${db_port}</p>
+EOF
+
+nohup busybox httpd -f -p ${server_port} &
+```
+and in your code use these values
+```
+data "template_file" "user_data" {
+  template = file("user-data.sh")
+  vars = {
+    server_port = var.server_port
+    db_address  = data.terraform_remote_state.db.outputs.address
+    db_port     = data.terraform_remote_state.db.outputs.port
+  }
+}
+
+resource "aws_launch_configuration" "example" {
+  image_id        = "ami-074251216af698218"
+  instance_type   = "t2.micro"
+  security_groups = [aws_security_group.instance.id]
+  user_data       = data.template_file.user_data.rendered
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+```
