@@ -1,6 +1,31 @@
 provider "aws" {
-  region = "us-west-2"
+  region  = "us-west-2"
+  version = "<4.0.0"
 }
+
+terraform {
+  backend "s3" {
+    key            = "stage/services/webserver-cluster/terraform.tfstate"
+    bucket         = "terraform-up-and-running-state-patrick"
+    region         = "us-west-2"
+    dynamodb_table = "terraform-up-and-running-locks-patrick"
+    encrypt        = true
+  }
+}
+
+data "terraform_remote_state" "db" {
+  backend = "s3"
+  config = {
+    bucket = "terraform-up-and-running-state-patrick"
+    key    = "stage/data-stores/mysql/terraform.tfstate"
+    region = "us-west-2"
+  }
+}
+
+
+
+
+
 
 data "aws_vpc" "default" {
   default = true
@@ -11,22 +36,20 @@ data "aws_subnet_ids" "default" {
 }
 
 
-variable "server_port" {
-  description = "The port the server will use for HTTP requests"
-  type        = number
-  default     = 8080
+data "template_file" "user_data" {
+  template = file("user-data.sh")
+  vars = {
+    server_port = var.server_port
+    db_address  = data.terraform_remote_state.db.outputs.address
+    db_port     = data.terraform_remote_state.db.outputs.port
+  }
 }
-
 
 resource "aws_launch_configuration" "example" {
   image_id        = "ami-074251216af698218"
   instance_type   = "t2.micro"
   security_groups = [aws_security_group.instance.id]
-  user_data       = <<-EOF
-              #!/bin/bash
-              echo "Hello, World" > index.html
-              nohup busybox httpd -f -p ${var.server_port} &
-              EOF 
+  user_data       = data.template_file.user_data.rendered
 
   # Required when using a launch configuration with an auto scaling group. 
   # https://www.terraform.io/docs/providers/aws/r/launch_configuration.html
@@ -133,11 +156,5 @@ resource "aws_security_group" "instance" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-
-output "alb_dns_name" {
-  value       = aws_lb.example.dns_name
-  description = "The domain name of the load balancer"
 }
 
